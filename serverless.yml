@@ -1,0 +1,192 @@
+service: magic-links-cognito-demo
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-iam-roles-per-function
+
+provider:
+  name: aws
+  runtime: nodejs16.x
+  region: eu-west-1
+
+custom:
+  # replace with your verified SES domain
+  domain: appsyncmasterclass.com 
+
+functions:
+  logIn:
+    handler: functions/log-in.handler
+    events:
+      - http:
+          path: login
+          method: post
+          cors: true
+    environment:
+      SES_FROM_ADDRESS: noreply@${self:custom.domain}
+      KMS_KEY_ID: !Ref EncryptionKey
+      BASE_URL: passwordless-cognito.theburningmonk.com
+      USER_POOL_ID: !Ref PasswordlessMagicLinksUserPool
+    iamRoleStatements:
+      - Effect: Allow
+        Action: ses:SendEmail
+        Resource: 
+          - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${self:custom.domain}
+          - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/*
+      - Effect: Allow
+        Action: kms:Encrypt
+        Resource: !GetAtt EncryptionKey.Arn
+      - Effect: Allow
+        Action: cognito-idp:AdminUpdateUserAttributes
+        Resource: !GetAtt PasswordlessMagicLinksUserPool.Arn
+
+  preSignUp:
+    handler: functions/pre-sign-up.handler
+
+  defineAuthChallenge:
+    handler: functions/define-auth-challenge.handler
+
+  createAuthChallenge:
+    handler: functions/create-auth-challenge.handler    
+
+  verifyAuthChallengeResponse:
+    handler: functions/verify-auth-challenge-response.handler
+    environment:
+      KMS_KEY_ID: !Ref EncryptionKey
+    iamRoleStatements:
+      - Effect: Allow
+        Action: kms:Decrypt
+        Resource: !GetAtt EncryptionKey.Arn
+    iamRoleStatementsName: ${self:service}-${sls:stage}-verifyAuthChallengeResponse
+
+resources:
+  Resources:
+    PasswordlessMagicLinksUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UsernameConfiguration:
+          CaseSensitive: false
+        UsernameAttributes:
+          - email
+        Policies:
+          # this is only to satisfy Cognito requirements
+          # we won't be using passwords, but we also don't
+          # want weak passwords in the system ;-)
+          PasswordPolicy:
+            MinimumLength: 16
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireUppercase: true
+            RequireSymbols: true
+        Schema:
+          - AttributeDataType: String
+            Mutable: false
+            Required: true
+            Name: email
+            StringAttributeConstraints: 
+              MinLength: '8'
+          - AttributeDataType: String
+            Mutable: true
+            Required: false
+            Name: authChallenge
+            StringAttributeConstraints: 
+              MinLength: '8'
+        LambdaConfig:
+          PreSignUp: !GetAtt PreSignUpLambdaFunction.Arn
+          DefineAuthChallenge: !GetAtt DefineAuthChallengeLambdaFunction.Arn
+          CreateAuthChallenge: !GetAtt CreateAuthChallengeLambdaFunction.Arn
+          VerifyAuthChallengeResponse: !GetAtt VerifyAuthChallengeResponseLambdaFunction.Arn
+
+    WebUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: web
+        UserPoolId: !Ref PasswordlessMagicLinksUserPool
+        ExplicitAuthFlows:
+          - ALLOW_CUSTOM_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+        PreventUserExistenceErrors: ENABLED
+
+    UserPoolPreSignUpLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:invokeFunction
+        Principal: cognito-idp.amazonaws.com
+        FunctionName: !Ref PreSignUpLambdaFunction
+        SourceArn: !GetAtt PasswordlessMagicLinksUserPool.Arn
+
+    UserPoolDefineAuthChallengeLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:invokeFunction
+        Principal: cognito-idp.amazonaws.com
+        FunctionName: !Ref DefineAuthChallengeLambdaFunction
+        SourceArn: !GetAtt PasswordlessMagicLinksUserPool.Arn
+
+    UserPoolCreateAuthChallengeLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:invokeFunction
+        Principal: cognito-idp.amazonaws.com
+        FunctionName: !Ref CreateAuthChallengeLambdaFunction
+        SourceArn: !GetAtt PasswordlessMagicLinksUserPool.Arn
+
+    UserPoolVerifyAuthChallengeResponseLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:invokeFunction
+        Principal: cognito-idp.amazonaws.com
+        FunctionName: !Ref VerifyAuthChallengeResponseLambdaFunction
+        SourceArn: !GetAtt PasswordlessMagicLinksUserPool.Arn
+
+    SessionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+          - AttributeName: session
+            KeyType: RANGE 
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+          - AttributeName: session
+            AttributeType: S
+
+    EncryptionKey:
+      Type: AWS::KMS::Key
+      Properties: 
+        Enabled: true
+        EnableKeyRotation: true
+        KeyPolicy:
+          Version: '2012-10-17'
+          Statement:
+            - Sid: Enable IAM User Permissions
+              Effect: Allow
+              Principal: 
+                AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+              Action: kms:*
+              Resource: '*'
+            - Sid: Allow access for Key Administrators
+              Effect: Allow
+              Principal: 
+                AWS: !Sub arn:aws:iam::${AWS::AccountId}:role/Administrator
+              Action:
+                - kms:Create*
+                - kms:Describe*
+                - kms:Enable*
+                - kms:List*
+                - kms:Put*
+                - kms:Update*
+                - kms:Revoke*
+                - kms:Disable*
+                - kms:Get*
+                - kms:Delete*
+                - kms:TagResource
+                - kms:UntagResource
+                - kms:ScheduleKeyDeletion
+                - kms:CancelKeyDeletio
+              Resource: '*'
+        MultiRegion: false
+        PendingWindowInDays: 7

@@ -1,0 +1,24 @@
+const _ = require('lodash')
+
+module.exports.handler = async (event) => {
+  if (event.request.userNotFound) {
+    event.response.issueTokens = false
+    event.response.failAuthentication = true
+    return event
+  }
+
+  const lastAttempt = _.last(event.request.session)
+  if (lastAttempt?.challengeResult === true) {
+    // User gave right answer
+    event.response.issueTokens = true
+    event.response.failAuthentication = false
+    return event
+  }
+
+  // Issue new challenge
+  event.response.issueTokens = false;
+  event.response.failAuthentication = false;
+  event.response.challengeName = 'CUSTOM_CHALLENGE';
+
+  return event
+}

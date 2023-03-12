@@ -1,0 +1,32 @@
+{
+  "name": "passwordless-magic-links-cognito-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "How to implement passwordless login using magic links with Cognito.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theburningmonk/passwordless-magic-links-cognito-demo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/theburningmonk/passwordless-magic-links-cognito-demo/issues"
+  },
+  "homepage": "https://github.com/theburningmonk/passwordless-magic-links-cognito-demo#readme",
+  "devDependencies": {
+    "aws-sdk": "^2.1333.0",
+    "serverless": "^3.28.1",
+    "serverless-iam-roles-per-function": "^3.2.0"
+  },
+  "dependencies": {
+    "@middy/core": "^4.2.6",
+    "@middy/http-cors": "^4.2.6",
+    "@middy/http-error-handler": "^4.2.6",
+    "lodash": "^4.17.21"
+  }
+}
