@@ -139,21 +139,6 @@ resources:
         FunctionName: !Ref VerifyAuthChallengeResponseLambdaFunction
         SourceArn: !GetAtt PasswordlessMagicLinksUserPool.Arn
 
-    SessionsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        BillingMode: PAY_PER_REQUEST
-        KeySchema:
-          - AttributeName: email
-            KeyType: HASH
-          - AttributeName: session
-            KeyType: RANGE 
-        AttributeDefinitions:
-          - AttributeName: email
-            AttributeType: S
-          - AttributeName: session
-            AttributeType: S
-
     EncryptionKey:
       Type: AWS::KMS::Key
       Properties: 
