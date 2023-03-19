@@ -171,7 +171,7 @@ resources:
                 - kms:TagResource
                 - kms:UntagResource
                 - kms:ScheduleKeyDeletion
-                - kms:CancelKeyDeletio
+                - kms:CancelKeyDeletion
               Resource: '*'
         MultiRegion: false
         PendingWindowInDays: 7
